@@ -46,6 +46,8 @@ SWAG_PRODUCTS = [
 ]
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "anh")
+# Thời gian dừng giữa các bước thao tác (giây) để người xem quan sát trực quan trên máy ảo
+DEMO_PAUSE = float(os.environ.get("DEMO_PAUSE", "2.0"))
 
 
 class MockAppiumElement:
@@ -194,13 +196,14 @@ class TestSapXepSanPham(unittest.TestCase):
     def _select_sort_option(self, option_text: str, option_acc_id: str) -> None:
         """Hàm trợ giúp mở modal và chọn kiểu sắp xếp (hỗ trợ cả Appium thật và Mock)."""
         wait = WebDriverWait(self.driver, timeout=10)
+        time.sleep(DEMO_PAUSE * 0.5)
         # Mở modal nếu chưa mở
         try:
             sort_btn = wait.until(
                 EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_MODAL_SELECTOR))
             )
             sort_btn.click()
-            time.sleep(0.5)
+            time.sleep(DEMO_PAUSE)
         except Exception:
             pass
 
@@ -215,7 +218,7 @@ class TestSapXepSanPham(unittest.TestCase):
                 EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, option_acc_id))
             )
             option_el.click()
-        time.sleep(1)
+        time.sleep(DEMO_PAUSE)
 
     def test_01_sort_name_az(self) -> None:
         """
@@ -241,6 +244,7 @@ class TestSapXepSanPham(unittest.TestCase):
 
         screenshot_file = os.path.join(OUTPUT_DIR, "tc01_sort_az.png")
         self.driver.save_screenshot(screenshot_file)
+        time.sleep(DEMO_PAUSE)
 
     def test_02_sort_name_za(self) -> None:
         """
@@ -264,6 +268,7 @@ class TestSapXepSanPham(unittest.TestCase):
 
         screenshot_file = os.path.join(OUTPUT_DIR, "tc02_sort_za.png")
         self.driver.save_screenshot(screenshot_file)
+        time.sleep(DEMO_PAUSE)
 
     def test_03_sort_price_low_to_high(self) -> None:
         """
@@ -288,6 +293,7 @@ class TestSapXepSanPham(unittest.TestCase):
 
         screenshot_file = os.path.join(OUTPUT_DIR, "tc03_sort_price_low_high.png")
         self.driver.save_screenshot(screenshot_file)
+        time.sleep(DEMO_PAUSE)
 
     def test_04_sort_price_high_to_low(self) -> None:
         """
@@ -311,6 +317,7 @@ class TestSapXepSanPham(unittest.TestCase):
 
         screenshot_file = os.path.join(OUTPUT_DIR, "tc04_sort_price_high_low.png")
         self.driver.save_screenshot(screenshot_file)
+        time.sleep(DEMO_PAUSE)
 
     def test_05_explicit_wait_visibility(self) -> None:
         """
@@ -325,6 +332,7 @@ class TestSapXepSanPham(unittest.TestCase):
 
         screenshot_file = os.path.join(OUTPUT_DIR, "tc05_explicit_wait.png")
         self.driver.save_screenshot(screenshot_file)
+        time.sleep(DEMO_PAUSE)
 
     def test_06_handle_timeout_exception(self) -> None:
         """
@@ -348,6 +356,7 @@ class TestSapXepSanPham(unittest.TestCase):
 
         screenshot_file = os.path.join(OUTPUT_DIR, "tc06_timeout_exception.png")
         self.driver.save_screenshot(screenshot_file)
+        time.sleep(DEMO_PAUSE)
 
 
 if __name__ == "__main__":
