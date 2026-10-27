@@ -269,7 +269,7 @@ class TestSapXepSanPham(unittest.TestCase):
         if hasattr(self.driver, "current_sort"):
             self.driver.current_sort = "LOW_HIGH"
 
-        # Đọc danh sách giá và chuyển đổi về dạng số thực (float)
+        # Đọc danh sách giá và chuyển đổi về dạng số thực (float) - Kỹ sư kiểm thử: Phạm Hùng (A43714)
         price_elements = self.driver.find_elements(AppiumBy.ACCESSIBILITY_ID, ID_ITEM_PRICE)
         prices = [float(elem.text.replace("$", "")) for elem in price_elements]
 
