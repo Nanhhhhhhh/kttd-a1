@@ -16,6 +16,7 @@ Các hàm và phương thức bắt buộc theo phân công Team A1:
 """
 
 import os
+import time
 import unittest
 from typing import List, Optional
 from appium import webdriver
@@ -84,16 +85,16 @@ class MockAppiumDriver:
         self.implicit_wait_sec = time_to_wait
 
     def find_elements(self, by: str, value: str) -> List[MockAppiumElement]:
-        if value == ID_ITEM_TITLE:
+        if value in [ID_ITEM_TITLE, f"//*[@content-desc='{ID_ITEM_TITLE}']"]:
             sorted_items = self._get_sorted_items()
             return [MockAppiumElement(text=item["name"], accessibility_id=ID_ITEM_TITLE) for item in sorted_items]
-        elif value == ID_ITEM_PRICE:
+        elif value in [ID_ITEM_PRICE, f"//*[@content-desc='{ID_ITEM_PRICE}']"]:
             sorted_items = self._get_sorted_items()
             return [MockAppiumElement(text=f"${item['price']:.2f}", accessibility_id=ID_ITEM_PRICE) for item in sorted_items]
         return []
 
     def find_element(self, by: str, value: str) -> MockAppiumElement:
-        if value in [ID_MODAL_SELECTOR, ID_OPTION_AZ, ID_OPTION_ZA, ID_OPTION_LOW_HIGH, ID_OPTION_HIGH_LOW]:
+        if value in [ID_MODAL_SELECTOR, ID_OPTION_AZ, ID_OPTION_ZA, ID_OPTION_LOW_HIGH, ID_OPTION_HIGH_LOW] or "Name" in value or "Price" in value:
             return MockAppiumElement(text=value, accessibility_id=value)
         raise NoSuchElementException(f"Không tìm thấy phần tử có {by}='{value}'")
 
@@ -109,7 +110,6 @@ class MockAppiumDriver:
         return SWAG_PRODUCTS
 
     def save_screenshot(self, filename: str) -> bool:
-        # Tạo ảnh placeholder minh chứng hợp lệ
         from PIL import Image, ImageDraw
         img = Image.new("RGB", (720, 1280), color=(15, 23, 42))
         draw = ImageDraw.Draw(img)
@@ -149,6 +149,7 @@ class TestSapXepSanPham(unittest.TestCase):
         options.automation_name = "UiAutomator2"
         options.app_package = "com.swaglabsmobileapp"
         options.app_activity = "com.swaglabsmobileapp.MainActivity"
+        options.no_reset = True
 
         try:
             # Khởi tạo phiên kết nối thật bằng webdriver.Remote (Hàm bắt buộc số 1)
@@ -157,6 +158,19 @@ class TestSapXepSanPham(unittest.TestCase):
                 options=options
             )
             cls.is_mock = False
+
+            # Đảm bảo đăng nhập nếu ứng dụng đang ở màn hình đăng nhập
+            try:
+                wait = WebDriverWait(cls.driver, timeout=3)
+                user_field = wait.until(EC.presence_of_element_located((AppiumBy.ACCESSIBILITY_ID, "test-Username")))
+                user_field.send_keys("standard_user")
+                pass_field = cls.driver.find_element(AppiumBy.ACCESSIBILITY_ID, "test-Password")
+                pass_field.send_keys("secret_sauce")
+                login_btn = cls.driver.find_element(AppiumBy.ACCESSIBILITY_ID, "test-LOGIN")
+                login_btn.click()
+                time.sleep(2)
+            except Exception:
+                pass
         except Exception:
             # Chế độ giả lập W3C cho môi trường CI/Local khi chưa bật giả lập Android
             cls.driver = MockAppiumDriver()
@@ -177,32 +191,47 @@ class TestSapXepSanPham(unittest.TestCase):
     def tearDown(self) -> None:
         pass
 
+    def _select_sort_option(self, option_text: str, option_acc_id: str) -> None:
+        """Hàm trợ giúp mở modal và chọn kiểu sắp xếp (hỗ trợ cả Appium thật và Mock)."""
+        wait = WebDriverWait(self.driver, timeout=10)
+        # Mở modal nếu chưa mở
+        try:
+            sort_btn = wait.until(
+                EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_MODAL_SELECTOR))
+            )
+            sort_btn.click()
+            time.sleep(0.5)
+        except Exception:
+            pass
+
+        # Bấm chọn tùy chọn sắp xếp
+        try:
+            option_el = wait.until(
+                EC.element_to_be_clickable((AppiumBy.XPATH, f"//*[@text='{option_text}']"))
+            )
+            option_el.click()
+        except Exception:
+            option_el = wait.until(
+                EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, option_acc_id))
+            )
+            option_el.click()
+        time.sleep(1)
+
     def test_01_sort_name_az(self) -> None:
         """
         TC01: Kiểm tra sắp xếp sản phẩm theo Tên tăng dần từ A đến Z.
         Sử dụng: AppiumBy.ACCESSIBILITY_ID, WebDriverWait, EC.element_to_be_clickable, find_elements.
         """
-        wait = WebDriverWait(self.driver, timeout=10)
-
-        # 1. Chờ nút mở modal sắp xếp hiển thị và có thể bấm được (Hàm bắt buộc số 3 & 5)
-        sort_button = wait.until(
-            EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_MODAL_SELECTOR))
-        )
-        sort_button.click()
-
-        # 2. Chọn tuỳ chọn sắp xếp Name (A to Z)
-        option_az = wait.until(
-            EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_OPTION_AZ))
-        )
-        option_az.click()
         if hasattr(self.driver, "current_sort"):
             self.driver.current_sort = "AZ"
 
-        # 3. Lấy toàn bộ tên sản phẩm bằng find_elements (Hàm bắt buộc số 7)
+        self._select_sort_option("Name (A to Z)", ID_OPTION_AZ)
+
+        # Lấy toàn bộ tên sản phẩm bằng find_elements (Hàm bắt buộc số 7)
         title_elements = self.driver.find_elements(AppiumBy.ACCESSIBILITY_ID, ID_ITEM_TITLE)
         product_names = [elem.text for elem in title_elements]
 
-        # 4. Xác nhận danh sách đã được sắp xếp tăng dần theo bảng chữ cái
+        # Xác nhận danh sách đã được sắp xếp tăng dần theo bảng chữ cái
         expected_names = sorted(product_names)
         self.assertEqual(
             product_names,
@@ -210,7 +239,6 @@ class TestSapXepSanPham(unittest.TestCase):
             f"Danh sách không được sắp xếp A-Z chính xác: {product_names}"
         )
 
-        # 5. Lưu ảnh chụp màn hình minh chứng
         screenshot_file = os.path.join(OUTPUT_DIR, "tc01_sort_az.png")
         self.driver.save_screenshot(screenshot_file)
 
@@ -219,27 +247,14 @@ class TestSapXepSanPham(unittest.TestCase):
         TC02: Kiểm tra sắp xếp sản phẩm theo Tên giảm dần từ Z đến A.
         Sử dụng: AppiumBy.ACCESSIBILITY_ID, WebDriverWait, EC.visibility_of_element_located, find_elements.
         """
-        wait = WebDriverWait(self.driver, timeout=10)
-
-        # 1. Mở modal sắp xếp
-        sort_button = wait.until(
-            EC.visibility_of_element_located((AppiumBy.ACCESSIBILITY_ID, ID_MODAL_SELECTOR))
-        )
-        sort_button.click()
-
-        # 2. Chọn tuỳ chọn Name (Z to A)
-        option_za = wait.until(
-            EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_OPTION_ZA))
-        )
-        option_za.click()
         if hasattr(self.driver, "current_sort"):
             self.driver.current_sort = "ZA"
 
-        # 3. Lấy danh sách tên sản phẩm
+        self._select_sort_option("Name (Z to A)", ID_OPTION_ZA)
+
         title_elements = self.driver.find_elements(AppiumBy.ACCESSIBILITY_ID, ID_ITEM_TITLE)
         product_names = [elem.text for elem in title_elements]
 
-        # 4. Xác nhận danh sách sắp xếp giảm dần Z-A
         expected_names = sorted(product_names, reverse=True)
         self.assertEqual(
             product_names,
@@ -255,25 +270,15 @@ class TestSapXepSanPham(unittest.TestCase):
         TC03: Kiểm tra sắp xếp sản phẩm theo Giá tăng dần (Price: low to high).
         Sử dụng: AppiumBy.ACCESSIBILITY_ID, WebDriverWait, EC.element_to_be_clickable, find_elements.
         """
-        wait = WebDriverWait(self.driver, timeout=10)
-
-        sort_button = wait.until(
-            EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_MODAL_SELECTOR))
-        )
-        sort_button.click()
-
-        option_low_high = wait.until(
-            EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_OPTION_LOW_HIGH))
-        )
-        option_low_high.click()
         if hasattr(self.driver, "current_sort"):
             self.driver.current_sort = "LOW_HIGH"
 
+        self._select_sort_option("Price (low to high)", ID_OPTION_LOW_HIGH)
+
         # Đọc danh sách giá và chuyển đổi về dạng số thực (float) - Kỹ sư kiểm thử: Phạm Hùng (A43714)
         price_elements = self.driver.find_elements(AppiumBy.ACCESSIBILITY_ID, ID_ITEM_PRICE)
-        prices = [float(elem.text.replace("$", "")) for elem in price_elements]
+        prices = [float(elem.text.replace("$", "").strip()) for elem in price_elements]
 
-        # Xác nhận giá tăng dần
         expected_prices = sorted(prices)
         self.assertEqual(
             prices,
@@ -289,22 +294,13 @@ class TestSapXepSanPham(unittest.TestCase):
         TC04: Kiểm tra sắp xếp sản phẩm theo Giá giảm dần (Price: high to low).
         Sử dụng: AppiumBy.ACCESSIBILITY_ID, WebDriverWait, EC.element_to_be_clickable, find_elements.
         """
-        wait = WebDriverWait(self.driver, timeout=10)
-
-        sort_button = wait.until(
-            EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_MODAL_SELECTOR))
-        )
-        sort_button.click()
-
-        option_high_low = wait.until(
-            EC.element_to_be_clickable((AppiumBy.ACCESSIBILITY_ID, ID_OPTION_HIGH_LOW))
-        )
-        option_high_low.click()
         if hasattr(self.driver, "current_sort"):
             self.driver.current_sort = "HIGH_LOW"
 
+        self._select_sort_option("Price (high to low)", ID_OPTION_HIGH_LOW)
+
         price_elements = self.driver.find_elements(AppiumBy.ACCESSIBILITY_ID, ID_ITEM_PRICE)
-        prices = [float(elem.text.replace("$", "")) for elem in price_elements]
+        prices = [float(elem.text.replace("$", "").strip()) for elem in price_elements]
 
         expected_prices = sorted(prices, reverse=True)
         self.assertEqual(
@@ -322,7 +318,6 @@ class TestSapXepSanPham(unittest.TestCase):
         Sử dụng: WebDriverWait, EC.visibility_of_element_located, AppiumBy.ACCESSIBILITY_ID.
         """
         wait = WebDriverWait(self.driver, timeout=10)
-        # Chờ phần tử modal xuất hiện
         element = wait.until(
             EC.visibility_of_element_located((AppiumBy.ACCESSIBILITY_ID, ID_MODAL_SELECTOR))
         )
@@ -340,12 +335,10 @@ class TestSapXepSanPham(unittest.TestCase):
         exception_caught = False
 
         try:
-            # Chủ động chờ phần tử không tồn tại để kiểm tra ngoại lệ TimeoutException
             wait.until(
                 EC.visibility_of_element_located((AppiumBy.ACCESSIBILITY_ID, "test-NonExistentID"))
             )
         except TimeoutException:
-            # Ngoại lệ ném ra đúng như kỳ vọng
             exception_caught = True
 
         self.assertTrue(
@@ -358,4 +351,4 @@ class TestSapXepSanPham(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main()
